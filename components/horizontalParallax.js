@@ -49,8 +49,15 @@ export default class Horizontal extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      animatedScroll: new Animated.Value(0)
+      animatedScroll: new Animated.Value(0),
+      scrollEnabled: true
     }
+
+    this.handleFocus = this.handleFocus.bind(this);
+  }
+
+  handleFocus(focused) {
+    this.setState({scrollEnabled: !focused})
   }
   
   render() {
@@ -60,6 +67,7 @@ export default class Horizontal extends React.Component {
           style={{flex: 1}}
           pagingEnabled
           horizontal
+          scrollEnabled={this.state.scrollEnabled}
           scrollEventThrottle={16}
           onScroll={
             Animated.event([
@@ -74,7 +82,15 @@ export default class Horizontal extends React.Component {
           }
         >
         {
-          images.map((image, i) => <Moment translateX={getInterpolate(this.state.animatedScroll, i, images.length)} key={i} {...image} />)
+          images.map((image, i) =>
+            <Moment
+              onFocus={this.handleFocus}
+              focused={!this.state.scrollEnabled}
+              translateX={getInterpolate(this.state.animatedScroll, i, images.length)}
+              key={i}
+              {...image} 
+            />
+          )
         }
         {Array.apply(null, {length: images.length + 1}).map((_, i) => getSeparator(i))}
         </ScrollView>
@@ -83,33 +99,89 @@ export default class Horizontal extends React.Component {
   }
 }
 
-const Moment = (props) => {
-  console.log(props)
+class Moment extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      scale: new Animated.Value(1)
+    }
+    this.handlePress = this.handlePress.bind(this);
+  }
 
+  componentWillMount() {
+    this.bgFadeInterpolate = this.state.scale.interpolate({
+      inputRange: [.9, 1],
+      outputRange:['rgba(0, 0, 0, .3)', 'rgba(0,0,0,0)']
+    })
+    this.textFade = this.state.scale.interpolate({
+      inputRange: [.9, 1],
+      outputRange:[0, 1]
+    })
+
+    this.calloutTranslate = this.state.scale.interpolate({
+      inputRange: [.9, 1],
+      outputRange:[0, 150]
+    })
+  }
+
+  handlePress() {
+    if (this.props.focused) {
+      return Animated.timing(this.state.scale, {
+        toValue: 1,
+        duration: 1000
+      }).start(() => this.props.onFocus(false))
+    }
+    return Animated.timing(this.state.scale, {
+      toValue: .9, duration: 1000
+    }).start(() => this.props.onFocus(true))
+  }
+
+  render() {
     const animatedStyle = {
-  		transform: [
-  			{
-  				translateX: props.translateX
-  			}
-  		]
-  	}
+      transform: [
+        {translateX: this.props.translateX},
+        {scale: this.state.scale}
+      ]
+    }
 
-  return (
-    <View style={styles.momentContainer}>
-      <Animated.Image 
-        source={{uri: props.url}}
-        style={[styles.image, animatedStyle]}
-        resizeMode="cover"
-      />
-      <View style={[StyleSheet.absoluteFill, styles.center]}>
-      	<View style={styles.textWrap}>
-      		<Text style={styles.title}>
-      			{props.title}
-      		</Text>
-      	</View>
+    const bgFadeStyle = {
+      backgroundColor: this.bgFadeInterpolate
+    }
+
+    const textFadeStyle = {
+      opacity: this.textFade
+    }
+
+    const calloutStyle = {
+      transform: [{translateY: this.calloutTranslate}]
+    }
+
+    return (
+      <View style={styles.momentContainer}>
+        <Animated.Image 
+          source={{uri: this.props.url}}
+          style={[styles.image, animatedStyle]}
+          resizeMode="cover"
+        />
+        <TouchableWithoutFeedback onPress={this.handlePress}>
+          <Animated.View style={[StyleSheet.absoluteFill, styles.center, bgFadeStyle]}>
+          	<Animated.View style={styles.textWrap, textFadeStyle}>
+          		<Text style={styles.title}>
+          			{this.props.title}
+          		</Text>
+          	</Animated.View>
+          </Animated.View>
+          </TouchableWithoutFeedback>
+          <Animated.View style={[styles.callout, calloutStyle]}>
+            <View>
+              <Text style={styles.title}>
+                {this.props.title}
+              </Text>
+            </View>
+          </Animated.View>
       </View>
-    </View>
-  )
+    )
+  }
 }
 
 const styles = StyleSheet.create({
@@ -118,8 +190,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    //paddingTop: Constants.statusBarHeight,
-    // backgroundColor: 'purple',
   },
   momentContainer: {
     width: width,
@@ -158,5 +228,14 @@ const styles = StyleSheet.create({
   	top: 0,
   	bottom: 0,
   	width: 5
+  },
+  callout: {
+    height: 150,
+    backgroundColor: 'rgba(0,0,0,.5)',
+    justifyContent: 'center',
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    left: 0
   }
 });
